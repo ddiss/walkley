@@ -1,3 +1,6 @@
 [submodule "wireguard-tools"]
 	path = wireguard-tools
-	url = https://gitlab.com/ceph-walkley/wireguard-tools
+	url = https://gitlab.com/ceph-walkley/wireguard-tools.git
+[submodule "linux"]
+	path = linux
+	url = https://gitlab.com/ceph-walkley/linux.git
