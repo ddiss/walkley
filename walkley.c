@@ -167,6 +167,48 @@ static int seed_rng(const char *rng_seed_str)
 	return 0;
 }
 
+static int dev_mount(char *dev, char *fstype, char *opts,
+		     char *dir)
+{
+	int ret;
+	/*
+	 * The kernel copies a full page for opts. PAGE_SIZE is not exported by
+	 * LKL...
+	 */
+	char opts_buf[64 * 1024];
+
+	if ((dev == NULL) || (fstype == NULL) || (dir == NULL)) {
+		return -LKL_EINVAL;
+	}
+
+	memset(opts_buf, 0, sizeof(opts_buf));
+	if (opts != NULL) {
+		size_t len = strlen(opts);
+		if (len >= sizeof(opts_buf)) {
+			return -LKL_E2BIG;
+		}
+		memcpy(opts_buf, opts, len);
+	}
+
+	ret = lkl_sys_mkdir(dir, 0700);
+	if (ret && (ret != -LKL_EEXIST)) {
+		fprintf(stderr, "failed to create dir at %s: %s.\n",
+			dir, lkl_strerror(ret));
+		return ret;
+	}
+
+	printf("mounting %s filesystem %s at %s\n", fstype, dev, dir);
+
+	ret = lkl_sys_mount(dev, dir, fstype, 0, opts_buf);
+	if (ret) {
+		fprintf(stderr, "mount failed: %s.\n", lkl_strerror(ret));
+		lkl_sys_rmdir(dir);
+		return ret;
+	}
+
+	return 0;
+}
+
 extern void dbg_entrance(void);
 
 static struct {
@@ -174,6 +216,9 @@ static struct {
 	int dhcp, nmlen;
 	unsigned int ip, dst;
 	const char *rng_seed;
+	char *mnt_dev;
+	char *mnt_fs_type;
+	char *mnt_opts;
 } cla = {
 	.ip = INADDR_NONE,
 	.dst = INADDR_NONE,
@@ -190,6 +235,12 @@ struct cl_arg args[] = {
 	 &cla.dst, NULL, NULL},
 	{"seed", 'S', "entropy string to seed /dev/random", 1, CL_ARG_STR,
 	 &cla.rng_seed, NULL, NULL},
+	{"mnt-dev", 'M', "device or network target to mount", 1, CL_ARG_STR,
+	 &cla.mnt_dev, NULL, NULL},
+	{"mnt-fs-type", 'T', "filesystem type to mount", 1, CL_ARG_STR,
+	 &cla.mnt_fs_type, NULL, NULL},
+	{"mnt-opts", 'O', "mount options", 1, CL_ARG_STR,
+	 &cla.mnt_opts, NULL, NULL},
 	{0},
 };
 
@@ -276,9 +327,30 @@ int main(int argc, const char **argv)
 		printf("ping successful\n");
 	}
 
+	if (cla.mnt_dev != NULL) {
+		ret = dev_mount(cla.mnt_dev, cla.mnt_fs_type, cla.mnt_opts,
+				"/mnt");
+		if (ret < 0) {
+			fprintf(stderr, "mount failed: %s\n",
+				lkl_strerror(ret));
+			goto out_halt;
+		}
+	}
+
 	printf("dropping into dbg shell...\n");
 	dbg_entrance();
 
+	if (cla.mnt_dev != NULL) {
+		ret = lkl_umount_timeout("/mnt", 0,
+					 1000);	/* 1s timeout */
+		if (ret < 0) {
+			fprintf(stderr, "umount failed: %s\n",
+				lkl_strerror(ret));
+			goto out_halt;
+		}
+	}
+
+	ret = 0;
 out_halt:
 	if (cla.tap_if != NULL) {
 		/* needs to be done before halt */
@@ -286,4 +358,5 @@ out_halt:
 		lkl_netdev_free(nd);
 	}
 	lkl_sys_halt();
+	return ret;
 }
