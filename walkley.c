@@ -18,6 +18,7 @@
 #include <lkl_host.h>
 /* FIXME should be using an LKL header for RNDADDENTROPY */
 #include <linux/random.h>
+#include <wireguard.h>
 
 #include "cla.h"
 
@@ -209,6 +210,117 @@ static int dev_mount(char *dev, char *fstype, char *opts,
 	return 0;
 }
 
+#define WGDEV "wgtest0"
+
+static int wg_setup(int wg_port, unsigned int wg_tun_ip, int wg_tun_nmlen,
+		const wg_key_b64_string wg_priv_key_b64,
+		const wg_key_b64_string wg_peer_pub_key_b64,
+		struct sockaddr_in *peer_ep_saddr)
+{
+	int ret;
+	int wg_ifindex;
+	wg_allowedip wildcardip = {
+		.family = AF_INET,
+		/* zero = allow all */
+	};
+	wg_peer new_peer = {
+		.flags = WGPEER_HAS_PUBLIC_KEY | WGPEER_REPLACE_ALLOWEDIPS,
+		.endpoint.addr4 = *peer_ep_saddr,
+		.first_allowedip = &wildcardip,
+		.last_allowedip = &wildcardip,
+	};
+	wg_device new_device = {
+		.name = WGDEV,
+		.listen_port = wg_port,
+		.flags = WGDEVICE_HAS_PRIVATE_KEY | WGDEVICE_HAS_LISTEN_PORT
+			| WGDEVICE_REPLACE_PEERS
+			| WGDEVICE_HAS_FWMARK, /* wg flags this when unset */
+		.first_peer = &new_peer,
+		.last_peer = &new_peer
+	};
+
+	ret = wg_key_from_base64(&new_device.private_key, wg_priv_key_b64);
+	if (ret < 0) {
+		fprintf(stderr, "failed to parse b64 private key\n");
+		goto err_out;
+	}
+
+	ret = wg_key_from_base64(&new_peer.public_key, wg_peer_pub_key_b64);
+	if (ret < 0) {
+		fprintf(stderr, "failed to parse b64 public key\n");
+		goto err_out;
+	}
+
+	ret = wg_add_device(new_device.name);
+	if (ret < 0) {
+		fprintf(stderr, "Unable to add device\n");
+		goto err_out;
+	}
+
+	ret = lkl_ifname_to_ifindex(new_device.name);
+	if (ret < 0) {
+		fprintf(stderr, "Unable get device index: %s\n",
+			lkl_strerror(ret));
+		ret = -ENODEV;
+		goto err_dev_del;
+	}
+
+	wg_ifindex = ret;
+
+	ret = lkl_if_up(wg_ifindex);
+	if (ret < 0) {
+		fprintf(stderr, "failed to set tun IP: %s\n",
+			lkl_strerror(ret));
+		ret = -ENODEV;
+		goto err_dev_del;
+	}
+
+	ret = wg_set_device(&new_device);
+	if (ret < 0) {
+		fprintf(stderr, "Unable to set device\n");
+		goto err_dev_del;
+	}
+
+	ret = lkl_if_set_ipv4(wg_ifindex, wg_tun_ip, wg_tun_nmlen);
+	if (ret < 0) {
+		fprintf(stderr, "failed to set tun IP: %s\n",
+			lkl_strerror(ret));
+		ret = -ENODEV;
+		goto err_dev_del;
+	}
+
+	printf("wireguard interface %s up\n", WGDEV);
+
+	return wg_ifindex;
+
+err_dev_del:
+	wg_del_device(WGDEV);
+err_out:
+	return ret;
+}
+
+static int wg_teardown(void)
+{
+	int ret = lkl_ifname_to_ifindex(WGDEV);
+	if (ret < 0) {
+		fprintf(stderr, "Unable get device index: %s\n",
+			lkl_strerror(ret));
+		return -ENODEV;
+	}
+	ret = lkl_if_down(ret);
+	if (ret < 0) {
+		fprintf(stderr, "Unable bring device down: %s\n",
+			lkl_strerror(ret));
+	}
+
+	ret = wg_del_device(WGDEV);
+	if (ret < 0) {
+		fprintf(stderr, "Unable to delete device\n");
+	}
+
+	return 0;
+}
+
 extern void dbg_entrance(void);
 
 static struct {
@@ -219,9 +331,18 @@ static struct {
 	char *mnt_dev;
 	char *mnt_fs_type;
 	char *mnt_opts;
+	int wg_port;
+	unsigned int wg_tun_ip;
+	int wg_tun_nmlen;
+	const char *wg_priv_key_b64;
+	const char *wg_peer_pub_key_b64;
+	unsigned int wg_peer_ep_ip;
+	int wg_peer_ep_port;
 } cla = {
 	.ip = INADDR_NONE,
 	.dst = INADDR_NONE,
+	.wg_tun_ip = INADDR_NONE,
+	.wg_peer_ep_ip = INADDR_NONE,
 };
 struct cl_arg args[] = {
 	{"tap-if", 'i', "tap interface name", 1, CL_ARG_STR,
@@ -241,6 +362,20 @@ struct cl_arg args[] = {
 	 &cla.mnt_fs_type, NULL, NULL},
 	{"mnt-opts", 'O', "mount options", 1, CL_ARG_STR,
 	 &cla.mnt_opts, NULL, NULL},
+	{"wg-port", 'p', "wireguard port", 1, CL_ARG_INT,
+	 &cla.wg_port, NULL, NULL},
+	{"wg-tun-ip", 't', "wireguard tunnel IPv4 address", 1, CL_ARG_IPV4,
+	 &cla.wg_tun_ip, NULL, NULL},
+	{"wg-tun-netmask-len", 'm', "wireguard tunnel netmask length", 1,
+	 CL_ARG_INT, &cla.wg_tun_nmlen, NULL, NULL},
+	{"wg-priv-key", 'k', "wireguard device base64 encoded private key", 1,
+	 CL_ARG_STR, &cla.wg_priv_key_b64, NULL, NULL},
+	{"wg-peer-pub-key", 'K', "wireguard peer base64 encoded public key", 1,
+	 CL_ARG_STR, &cla.wg_peer_pub_key_b64, NULL, NULL},
+	{"wg-peer-ep-ip", 'E', "wireguard peer endpoint IPv4 address", 1,
+	 CL_ARG_IPV4, &cla.wg_peer_ep_ip, NULL, NULL},
+	{"wg-peer-ep-port", 'P', "peer endpoint port", 1,
+	 CL_ARG_INT, &cla.wg_peer_ep_port, NULL, NULL},
 	{0},
 };
 
@@ -254,8 +389,15 @@ int main(int argc, const char **argv)
 	if (parse_args(argc, argv, args) < 0)
 		return -EINVAL;
 
-	if (cla.ip != LKL_INADDR_NONE && (cla.nmlen < 0 || cla.nmlen > 32)) {
+	if ((cla.ip != LKL_INADDR_NONE) && (cla.nmlen < 0 || cla.nmlen > 32)) {
 		fprintf(stderr, "invalid netmask length %d\n", cla.nmlen);
+		return -EINVAL;
+	}
+
+	if ((cla.wg_tun_ip != LKL_INADDR_NONE)
+	 && (cla.wg_tun_nmlen < 0 || cla.wg_tun_nmlen > 32)) {
+		fprintf(stderr, "invalid tun netmask length %d\n",
+			cla.wg_tun_nmlen);
 		return -EINVAL;
 	}
 
@@ -272,8 +414,6 @@ int main(int argc, const char **argv)
 			fprintf(stderr, "failed to add tap netdev: %d\n", nd_id);
 			return -EINVAL;
 		}
-
-		printf("got nd_id %d\n", nd_id);
 	}
 
 	ret = lkl_start_kernel(&lkl_host_ops,
@@ -300,7 +440,6 @@ int main(int argc, const char **argv)
 			goto out_halt;
 		}
 
-		/* XXX call with 1 if tap_if isn't set? */
 		ret = lkl_if_up(nd_ifindex);
 		if (ret < 0) {
 			fprintf(stderr, "failed to bring up tap: %d\n", ret);
@@ -317,12 +456,30 @@ int main(int argc, const char **argv)
 		}
 	}
 
+	if (cla.wg_port != 0) {
+		struct sockaddr_in peer_ep_saddr;
+
+		memset(&peer_ep_saddr, 0, sizeof(peer_ep_saddr));
+		if (cla.wg_peer_ep_ip != INADDR_NONE) {
+			peer_ep_saddr.sin_family = AF_INET;
+			peer_ep_saddr.sin_addr.s_addr = cla.wg_peer_ep_ip;
+			peer_ep_saddr.sin_port = htons(cla.wg_peer_ep_port);
+		}
+
+		ret = wg_setup(cla.wg_port, cla.wg_tun_ip, cla.wg_tun_nmlen,
+			       cla.wg_priv_key_b64, cla.wg_peer_pub_key_b64,
+			       &peer_ep_saddr);
+		if (ret < 0) {
+			goto out_halt;
+		}
+	}
+
 	if (cla.dst != INADDR_NONE) {
 		ret = icmp_txrx(cla.dst);
 		if (ret < 0) {
 			fprintf(stderr, "failed icmp exchange: %s\n",
 				strerror(-ret));
-			goto out_halt;
+			goto out_wg_teardown;
 		}
 		printf("ping successful\n");
 	}
@@ -333,7 +490,7 @@ int main(int argc, const char **argv)
 		if (ret < 0) {
 			fprintf(stderr, "mount failed: %s\n",
 				lkl_strerror(ret));
-			goto out_halt;
+			goto out_wg_teardown;
 		}
 	}
 
@@ -346,11 +503,15 @@ int main(int argc, const char **argv)
 		if (ret < 0) {
 			fprintf(stderr, "umount failed: %s\n",
 				lkl_strerror(ret));
-			goto out_halt;
+			goto out_wg_teardown;
 		}
 	}
 
 	ret = 0;
+out_wg_teardown:
+	if (cla.wg_port != 0) {
+		wg_teardown();
+	}
 out_halt:
 	if (cla.tap_if != NULL) {
 		/* needs to be done before halt */
