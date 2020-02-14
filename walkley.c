@@ -352,7 +352,7 @@ struct cl_arg args[] = {
 	{"ip", 'I', "IPv4 address", 1, CL_ARG_IPV4, &cla.ip, NULL, NULL},
 	{"netmask-len", 'n', "IPv4 netmask length", 1, CL_ARG_INT,
 	 &cla.nmlen, NULL, NULL},
-	{"dst", 'D', "IPv4 destination address", 1, CL_ARG_IPV4,
+	{"dst", 'D', "IPv4 address to ping after network setup", 1, CL_ARG_IPV4,
 	 &cla.dst, NULL, NULL},
 	{"seed", 'S', "entropy string to seed /dev/random", 1, CL_ARG_STR,
 	 &cla.rng_seed, NULL, NULL},
@@ -374,7 +374,7 @@ struct cl_arg args[] = {
 	 CL_ARG_STR, &cla.wg_peer_pub_key_b64, NULL, NULL},
 	{"wg-peer-ep-ip", 'E', "wireguard peer endpoint IPv4 address", 1,
 	 CL_ARG_IPV4, &cla.wg_peer_ep_ip, NULL, NULL},
-	{"wg-peer-ep-port", 'P', "peer endpoint port", 1,
+	{"wg-peer-ep-port", 'P', "wireguard peer endpoint port", 1,
 	 CL_ARG_INT, &cla.wg_peer_ep_port, NULL, NULL},
 	{0},
 };
