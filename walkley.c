@@ -57,7 +57,7 @@ static int icmp_txrx(unsigned int dst)
 	}
 
 	memset(&saddr, 0, sizeof(saddr));
-	saddr.sin_family = AF_INET;
+	saddr.sin_family = LKL_AF_INET;
 	saddr.sin_addr.lkl_s_addr = dst;
 
 	sock = lkl_sys_socket(LKL_AF_INET, LKL_SOCK_RAW, LKL_IPPROTO_ICMP);
