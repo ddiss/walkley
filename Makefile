@@ -10,7 +10,10 @@ endif
 CFLAGS += -I./linux/tools/lkl/include/
 CFLAGS += -I./linux/tools/lkl/tests/
 CFLAGS += -I./wireguard-tools/contrib/embeddable-wg-library/
-CFLAGS += -pthread -lrt
+CFLAGS += -pthread
+ifneq ($(TARGET), android)
+CFLAGS += -lrt
+endif
 
 all: $(SUBDIRS) walkley
 

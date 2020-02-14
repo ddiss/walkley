@@ -16,6 +16,27 @@ make
 ```
 
 The kernel builds with the config at `linux/arch/um/lkl/configs/lkl_defconfig`.
+All components can be built against the Android NDK (tested with android-ndk-r21
+on x86-64, cross compiling for aarch64).
+As a workaround for https://github.com/lkl/linux/issues/475 , GNU ld (GNU
+Binutils; openSUSE Leap 15.1) 2.31.1.20180828-lp151.2 can be used instead of GNU
+ld (GNU Binutils) 2.27.0.20170315 from the NDK. E.g.
+```
+arch="aarch64"
+ndk_tc="~/android-ndk-r21/toolchains/llvm/prebuilt/linux-x86_64"
+suse_cross_ld="/usr/bin/${arch}-suse-linux-ld"
+
+make TARGET="android" \
+        AR="${ndk_tc}/bin/${arch}-linux-android-ar" \
+        CC="${ndk_tc}/bin/${arch}-linux-android21-clang" \
+        HOSTCC=gcc HOSTLD=ld \
+        KCFLAGS=-Wno-implicit-fallthrough \
+        LD=${suse_cross_ld} \
+        NM="${ndk_tc}/bin/${arch}-linux-android${eabi}-nm" \
+        OBJDUMP="${ndk_tc}/bin/${arch}-linux-android-objdump" \
+        OBJSIZE="${ndk_tc}/bin/${arch}-linux-android-size" \
+        OBJCOPY="${ndk_tc}/bin/${arch}-linux-android-objcopy"
+```
 
 ## Usage
 
