@@ -379,18 +379,20 @@ struct cl_arg args[] = {
 	{0},
 };
 
-int main(int argc, const char **argv)
+static int args_validate()
 {
-	int ret;
-	struct lkl_netdev *nd = NULL;
-	int nd_id = 0;
-	int nd_ifindex;
-
-	if (parse_args(argc, argv, args) < 0)
-		return -EINVAL;
-
 	if ((cla.ip != LKL_INADDR_NONE) && (cla.nmlen < 0 || cla.nmlen > 32)) {
 		fprintf(stderr, "invalid netmask length %d\n", cla.nmlen);
+		return -EINVAL;
+	}
+
+	if ((cla.ip != LKL_INADDR_NONE) && cla.dhcp) {
+		fprintf(stderr, "static IP parameter conflicts with DHCP\n");
+		return -EINVAL;
+	}
+
+	if ((cla.mnt_dev == NULL) != (cla.mnt_fs_type == NULL)) {
+		fprintf(stderr, "mount device only valid with FS type\n");
 		return -EINVAL;
 	}
 
@@ -398,6 +400,33 @@ int main(int argc, const char **argv)
 	 && (cla.wg_tun_nmlen < 0 || cla.wg_tun_nmlen > 32)) {
 		fprintf(stderr, "invalid tun netmask length %d\n",
 			cla.wg_tun_nmlen);
+		return -EINVAL;
+	}
+
+	if ((cla.wg_port != 0)
+	 && ((cla.wg_priv_key_b64 == NULL)
+					|| (cla.wg_peer_pub_key_b64 == NULL))) {
+		fprintf(stderr, "wireguard key parameter(s) missing\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int main(int argc, const char **argv)
+{
+	int ret;
+	struct lkl_netdev *nd = NULL;
+	int nd_id = 0;
+	int nd_ifindex;
+
+	ret = parse_args(argc, argv, args);
+	if (ret < 0) {
+		return -EINVAL;
+	}
+
+	ret = args_validate();
+	if (ret < 0) {
 		return -EINVAL;
 	}
 
