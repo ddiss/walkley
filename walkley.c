@@ -323,6 +323,16 @@ static int wg_teardown(void)
 
 extern void dbg_entrance(void);
 
+struct cla_args_wg {
+	int port;
+	unsigned int tun_ip;
+	int tun_nmlen;
+	const char *priv_key_b64;
+	const char *peer_pub_key_b64;
+	unsigned int peer_ep_ip;
+	int peer_ep_port;
+};
+
 static struct {
 	const char *tap_if;
 	int dhcp, nmlen;
@@ -331,18 +341,12 @@ static struct {
 	char *mnt_dev;
 	char *mnt_fs_type;
 	char *mnt_opts;
-	int wg_port;
-	unsigned int wg_tun_ip;
-	int wg_tun_nmlen;
-	const char *wg_priv_key_b64;
-	const char *wg_peer_pub_key_b64;
-	unsigned int wg_peer_ep_ip;
-	int wg_peer_ep_port;
+	struct cla_args_wg wg;
 } cla = {
 	.ip = INADDR_NONE,
 	.dst = INADDR_NONE,
-	.wg_tun_ip = INADDR_NONE,
-	.wg_peer_ep_ip = INADDR_NONE,
+	.wg.tun_ip = INADDR_NONE,
+	.wg.peer_ep_ip = INADDR_NONE,
 };
 struct cl_arg args[] = {
 	{"tap-if", 'i', "tap interface name", 1, CL_ARG_STR,
@@ -363,19 +367,19 @@ struct cl_arg args[] = {
 	{"mnt-opts", 'O', "mount options", 1, CL_ARG_STR,
 	 &cla.mnt_opts, NULL, NULL},
 	{"wg-port", 'p', "wireguard port", 1, CL_ARG_INT,
-	 &cla.wg_port, NULL, NULL},
+	 &cla.wg.port, NULL, NULL},
 	{"wg-tun-ip", 't', "wireguard tunnel IPv4 address", 1, CL_ARG_IPV4,
-	 &cla.wg_tun_ip, NULL, NULL},
+	 &cla.wg.tun_ip, NULL, NULL},
 	{"wg-tun-netmask-len", 'm', "wireguard tunnel netmask length", 1,
-	 CL_ARG_INT, &cla.wg_tun_nmlen, NULL, NULL},
+	 CL_ARG_INT, &cla.wg.tun_nmlen, NULL, NULL},
 	{"wg-priv-key", 'k', "wireguard device base64 encoded private key", 1,
-	 CL_ARG_STR, &cla.wg_priv_key_b64, NULL, NULL},
+	 CL_ARG_STR, &cla.wg.priv_key_b64, NULL, NULL},
 	{"wg-peer-pub-key", 'K', "wireguard peer base64 encoded public key", 1,
-	 CL_ARG_STR, &cla.wg_peer_pub_key_b64, NULL, NULL},
+	 CL_ARG_STR, &cla.wg.peer_pub_key_b64, NULL, NULL},
 	{"wg-peer-ep-ip", 'E', "wireguard peer endpoint IPv4 address", 1,
-	 CL_ARG_IPV4, &cla.wg_peer_ep_ip, NULL, NULL},
+	 CL_ARG_IPV4, &cla.wg.peer_ep_ip, NULL, NULL},
 	{"wg-peer-ep-port", 'P', "wireguard peer endpoint port", 1,
-	 CL_ARG_INT, &cla.wg_peer_ep_port, NULL, NULL},
+	 CL_ARG_INT, &cla.wg.peer_ep_port, NULL, NULL},
 	{0},
 };
 
@@ -396,16 +400,16 @@ static int args_validate()
 		return -EINVAL;
 	}
 
-	if ((cla.wg_tun_ip != LKL_INADDR_NONE)
-	 && (cla.wg_tun_nmlen < 0 || cla.wg_tun_nmlen > 32)) {
+	if ((cla.wg.tun_ip != LKL_INADDR_NONE)
+	 && (cla.wg.tun_nmlen < 0 || cla.wg.tun_nmlen > 32)) {
 		fprintf(stderr, "invalid tun netmask length %d\n",
-			cla.wg_tun_nmlen);
+			cla.wg.tun_nmlen);
 		return -EINVAL;
 	}
 
-	if ((cla.wg_port != 0)
-	 && ((cla.wg_priv_key_b64 == NULL)
-					|| (cla.wg_peer_pub_key_b64 == NULL))) {
+	if ((cla.wg.port != 0)
+	 && ((cla.wg.priv_key_b64 == NULL)
+					|| (cla.wg.peer_pub_key_b64 == NULL))) {
 		fprintf(stderr, "wireguard key parameter(s) missing\n");
 		return -EINVAL;
 	}
@@ -485,18 +489,18 @@ int main(int argc, const char **argv)
 		}
 	}
 
-	if (cla.wg_port != 0) {
+	if (cla.wg.port != 0) {
 		struct sockaddr_in peer_ep_saddr;
 
 		memset(&peer_ep_saddr, 0, sizeof(peer_ep_saddr));
-		if (cla.wg_peer_ep_ip != INADDR_NONE) {
+		if (cla.wg.peer_ep_ip != INADDR_NONE) {
 			peer_ep_saddr.sin_family = AF_INET;
-			peer_ep_saddr.sin_addr.s_addr = cla.wg_peer_ep_ip;
-			peer_ep_saddr.sin_port = htons(cla.wg_peer_ep_port);
+			peer_ep_saddr.sin_addr.s_addr = cla.wg.peer_ep_ip;
+			peer_ep_saddr.sin_port = htons(cla.wg.peer_ep_port);
 		}
 
-		ret = wg_setup(cla.wg_port, cla.wg_tun_ip, cla.wg_tun_nmlen,
-			       cla.wg_priv_key_b64, cla.wg_peer_pub_key_b64,
+		ret = wg_setup(cla.wg.port, cla.wg.tun_ip, cla.wg.tun_nmlen,
+			       cla.wg.priv_key_b64, cla.wg.peer_pub_key_b64,
 			       &peer_ep_saddr);
 		if (ret < 0) {
 			goto out_halt;
@@ -538,7 +542,7 @@ int main(int argc, const char **argv)
 
 	ret = 0;
 out_wg_teardown:
-	if (cla.wg_port != 0) {
+	if (cla.wg.port != 0) {
 		wg_teardown();
 	}
 out_halt:
