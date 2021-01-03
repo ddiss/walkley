@@ -423,6 +423,7 @@ int main(int argc, const char **argv)
 	struct lkl_netdev *nd = NULL;
 	int nd_id = 0;
 	int nd_ifindex;
+	struct timespec walltime;
 
 	ret = parse_args(argc, argv, args);
 	if (ret < 0) {
@@ -453,6 +454,21 @@ int main(int argc, const char **argv)
 		"mem=16M loglevel=8 %s", cla.dhcp ? "ip=dhcp" : "");
 	if (ret < 0) {
 		fprintf(stderr, "failed to start kernel: %d\n", ret);
+		return ret;
+	}
+
+	/*
+	 * wireguard uses a time based seqnum, so the clock needs to be set for
+	 * successful reconnect.
+	 */
+	ret = clock_gettime(CLOCK_REALTIME, &walltime);
+	if (ret < 0) {
+		fprintf(stderr, "host clock_gettime() failed: %d\n", errno);
+		return -EFAULT;
+	}
+	ret = lkl_sys_clock_settime(CLOCK_REALTIME, &walltime);
+	if (ret < 0) {
+		fprintf(stderr, "lkl_sys_clock_settime() failed: %d\n", ret);
 		return ret;
 	}
 
