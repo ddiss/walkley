@@ -1,4 +1,4 @@
-SUBDIRS := linux/tools/lkl wireguard-tools/src
+LKL := linux/tools/lkl
 CFLAGS ?= -O3
 CFLAGS += -idirafter uapi
 CFLAGS += -std=gnu99 -D_GNU_SOURCE
@@ -15,15 +15,23 @@ ifneq ($(TARGET), android)
 CFLAGS += -lrt
 endif
 
-all: $(SUBDIRS) walkley
+all: $(LKL) walkley
 
-clean: $(SUBDIRS)
-	$(RM) walkley *.d
+clean: $(LKL)
+	$(RM) walkley *.d linux/arch/lkl/configs/walkley_defconfig
+
+linux/tools/lkl/liblkl.a: $(LKL)
+
+linux/tools/lkl/tests/cla.o: $(LKL)
 
 walkley: linux/tools/lkl/tests/cla.o linux/tools/lkl/liblkl.a \
 	wireguard-tools/contrib/embeddable-wg-library/wireguard.c walkley.c
 
-$(SUBDIRS):
+linux/arch/lkl/configs/walkley_defconfig: lkl_defconfig
+	cp -f $< $@
+
+$(LKL): linux/arch/lkl/configs/walkley_defconfig
+	export KCONFIG=walkley_defconfig
 	$(MAKE) -C $@ $(MAKECMDGOALS)
 
-.PHONY: all clean $(SUBDIRS)
+.PHONY: all clean $(LKL)
