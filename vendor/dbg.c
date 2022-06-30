@@ -199,6 +199,67 @@ static void cat() {
 	lkl_sys_close(fd);
 }
 
+static void cp() {
+	char in_path[LKL_PATH_MAX];
+	char out_path[LKL_PATH_MAX];
+	ssize_t rd_ret, wr_ret;
+	char buf[4096];
+	int in_fd, out_fd;
+
+	if (argc != 2) {
+		fprintf(stderr, "%s\n", "Two arguments are needed.");
+		goto out;
+	}
+
+	build_path(in_path);
+	in_fd = lkl_sys_open(in_path, LKL_O_RDONLY, 0);
+	if (in_fd < 0) {
+		fprintf(stderr, "lkl_sys_open %s: %s\n",
+			in_path, lkl_strerror(in_fd));
+		goto out;
+	}
+
+	build_path(out_path);
+	out_fd = lkl_sys_open(out_path, LKL_O_WRONLY | LKL_O_CREAT, 0);
+	if (out_fd < 0) {
+		fprintf(stderr, "lkl_sys_open %s: %s\n",
+			out_path, lkl_strerror(out_fd));
+		goto infd_close;
+	}
+
+	while ((rd_ret = lkl_sys_read(in_fd, buf, sizeof(buf))) > 0) {
+		ssize_t written;
+		for (written = 0; written < rd_ret; written += wr_ret) {
+			wr_ret = lkl_sys_write(out_fd, buf + written,
+					       rd_ret - written);
+			if (wr_ret <= 0) {
+				fprintf(stderr, "lkl_sys_write %s: %s\n",
+					out_path, lkl_strerror(wr_ret));
+				goto outfd_close;
+			}
+		}
+	}
+
+	if (rd_ret) {
+		fprintf(stderr, "lkl_sys_read %s: %s\n",
+			in_path, lkl_strerror(rd_ret));
+		goto outfd_close;
+	}
+
+	wr_ret = lkl_sys_fsync(out_fd);
+	if (wr_ret < 0) {
+		fprintf(stderr, "lkl_sys_fsync %s: %s\n",
+			out_path, lkl_strerror(wr_ret));
+		goto outfd_close;
+	}
+outfd_close:
+	lkl_sys_close(out_fd);
+infd_close:
+	lkl_sys_close(in_fd);
+out:
+	return;
+}
+
 static void overwrite() {
 	char path[LKL_PATH_MAX];
 	int ret;
@@ -255,6 +316,7 @@ static struct dbg_cmd {
 	void (*cmd_cb)(void);
 } dcmds[] = { { "cat", "cat FILE", "Show content of FILE", cat },
 	{ "cd", "cd [DIR]", "Change directory to DIR", cd },
+	{ "cp", "cp INFILE OUTFILE", "Copy INFILE contents to OUTFILE", cp },
 	{ "help", "help", "Show this message", help },
 	{ "ls", "ls [DIR]", "List files in DIR", ls },
 	{ "mount", "mount FSTYPE [DEV DIR OPTS]",
