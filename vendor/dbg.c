@@ -76,28 +76,6 @@ static void build_path(char* path) {
 	free(npath);
 }
 
-static void help() {
-	const char *msg =
-		"cat FILE\n"
-		"\tShow content of FILE\n"
-		"cd [DIR]\n"
-		"\tChange directory to DIR\n"
-		"exit\n"
-		"\tExit the debug session\n"
-		"help\n"
-		"\tShow this message\n"
-		"ls [DIR]\n"
-		"\tList files in DIR\n"
-		"mount FSTYPE [DEV DIR OPTS]\n"
-		"\tMount FSTYPE as /FSTYPE or DEV at DIR with OPTS\n"
-		"overwrite FILE\n"
-		"\tOverwrite content of FILE from stdin\n"
-		"pwd\n"
-		"\tShow current directory\n"
-		;
-	printf("%s", msg);
-}
-
 static void ls() {
 	char path[LKL_PATH_MAX];
 	struct lkl_dir* dir;
@@ -268,17 +246,42 @@ static int parse_cmd(char* input) {
 	return 0;
 }
 
+static void help(void);
+
+static struct dbg_cmd {
+	char *name;
+	char *usage;
+	char *desc;
+	void (*cmd_cb)(void);
+} dcmds[] = { { "cat", "cat FILE", "Show content of FILE", cat },
+	{ "cd", "cd [DIR]", "Change directory to DIR", cd },
+	{ "help", "help", "Show this message", help },
+	{ "ls", "ls [DIR]", "List files in DIR", ls },
+	{ "mount", "mount FSTYPE [DEV DIR OPTS]",
+	  "Mount FSTYPE as /FSTYPE or DEV at DIR with OPTS", mount },
+	{ "overwrite", "overwrite FILE",
+	  "Overwrite content of FILE from stdin", overwrite },
+	{ "pwd", "pwd", "Show current directory", pwd },
+	{ "exit", "exit", "Exit the debug session", NULL },
+	/* terminator must be last... */
+	{ NULL } };
+
+static void help() {
+	const struct dbg_cmd *dcmd;
+
+	for (dcmd = dcmds; dcmd->name != NULL; dcmd++)
+		printf("%s\n\t%s\n", dcmd->usage, dcmd->desc);
+}
+
 static void run_cmd() {
-	if(strcmp(cmd, "cat") == 0) cat();
-	else if(strcmp(cmd, "cd") == 0) cd();
-	else if(strcmp(cmd, "help") == 0) help();
-	else if(strcmp(cmd, "ls") == 0) ls();
-	else if(strcmp(cmd, "mount") == 0) mount();
-	else if(strcmp(cmd, "overwrite") == 0) overwrite();
-	else if(strcmp(cmd, "pwd") == 0) pwd();
-	else {
-		fprintf(stderr, "Unknown command: %s\n", cmd);
+	const struct dbg_cmd *dcmd;
+
+	for (dcmd = dcmds; dcmd->name != NULL; dcmd++) {
+		if (!strcmp(dcmd->name, cmd) && dcmd->cmd_cb)
+			return dcmd->cmd_cb();
 	}
+	if (dcmd->name == NULL)
+		fprintf(stderr, "Unknown command: %s\n", cmd);
 }
 
 void dbg_entrance() {
@@ -291,7 +294,8 @@ void dbg_entrance() {
 		printf("%s ", PROMOTE);
 		ret = scanf("%" xstr(MAX_BUF) "[^\n]s", input);
 		while ((c = getchar()) != '\n' && c != EOF);
-		if (ret == 0) continue;
+		if (ret == 0)
+			continue;
 		if (ret != 1 && errno != EINTR) {
 			perror("scanf");
 			continue;
@@ -300,8 +304,10 @@ void dbg_entrance() {
 			fprintf(stderr, "Too long input > %d\n", MAX_BUF - 1);
 			continue;
 		}
-		if (parse_cmd(input)) continue;
-		if (strcmp(cmd, "exit") == 0) break;
+		if (parse_cmd(input))
+			continue;
+		if (strcmp(cmd, "exit") == 0)
+			break;
 		run_cmd();
 	} while(1);
 }
