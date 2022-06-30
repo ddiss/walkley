@@ -20,7 +20,7 @@
 #include <linux/random.h>
 #include <wireguard.h>
 
-#include "cla.h"
+#include "vendor/cl_arg.h"
 
 static u_short in_cksum(const u_short *addr, register int len, u_short csum)
 {
@@ -321,8 +321,6 @@ static int wg_teardown(void)
 	return 0;
 }
 
-extern void dbg_entrance(void);
-
 struct cla_args_wg {
 	int port;
 	unsigned int tun_ip;
@@ -544,7 +542,7 @@ int main(int argc, const char **argv)
 	}
 
 	printf("dropping into dbg shell...\n");
-	dbg_entrance();
+	dbg_cli();
 
 	if (cla.mnt_dev != NULL) {
 		ret = lkl_umount_timeout("/mnt", 0,

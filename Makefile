@@ -8,7 +8,6 @@ ifeq ($(DEBUG),yes)
 CFLAGS += -g
 endif
 CFLAGS += -I./linux/tools/lkl/include/
-CFLAGS += -I./linux/tools/lkl/tests/
 CFLAGS += -I./wireguard-tools/contrib/embeddable-wg-library/
 CFLAGS += -pthread
 ifneq ($(TARGET), android)
@@ -22,10 +21,11 @@ clean: $(LKL)
 
 linux/tools/lkl/liblkl.a: $(LKL)
 
-linux/tools/lkl/tests/cla.o: $(LKL)
-
-walkley: linux/tools/lkl/tests/cla.o linux/tools/lkl/liblkl.a \
-	wireguard-tools/contrib/embeddable-wg-library/wireguard.c walkley.c
+walkley: linux/tools/lkl/liblkl.a \
+	wireguard-tools/contrib/embeddable-wg-library/wireguard.c \
+	vendor/cl_arg.c \
+	vendor/dbg.c \
+	walkley.c
 
 linux/arch/lkl/configs/walkley_defconfig: lkl_defconfig
 	cp -f $< $@

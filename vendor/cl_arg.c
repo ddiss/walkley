@@ -13,7 +13,7 @@
 #include <arpa/inet.h>
 #endif
 
-#include "cla.h"
+#include "cl_arg.h"
 
 static int cl_arg_parse_bool(struct cl_arg *arg, const char *value)
 {

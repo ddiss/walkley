@@ -346,7 +346,7 @@ static void run_cmd() {
 		fprintf(stderr, "Unknown command: %s\n", cmd);
 }
 
-void dbg_entrance() {
+void dbg_cli() {
 	char input[MAX_BUF + 1];
 	int ret;
 	int c;

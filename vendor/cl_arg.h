@@ -28,5 +28,7 @@ struct cl_arg {
 
 int parse_args(int argc, const char **argv, struct cl_arg *args);
 
+/* dbg.c */
+void dbg_cli();
 
 #endif /* _LKL_TEST_CLA_H */
