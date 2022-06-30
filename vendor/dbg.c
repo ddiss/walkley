@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static const char* PROMOTE = "$";
 #define str(x) #x
 #define xstr(s) str(s)
 #define MAX_BUF 100
@@ -346,14 +345,14 @@ static void run_cmd() {
 		fprintf(stderr, "Unknown command: %s\n", cmd);
 }
 
-void dbg_cli() {
+void dbg_cli(const char *prompt) {
 	char input[MAX_BUF + 1];
 	int ret;
 	int c;
 
 	printf("Type help to see a list of commands\n");
 	do {
-		printf("%s ", PROMOTE);
+		printf("%s", prompt);
 		ret = scanf("%" xstr(MAX_BUF) "[^\n]s", input);
 		while ((c = getchar()) != '\n' && c != EOF);
 		if (ret == 0)

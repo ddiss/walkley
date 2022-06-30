@@ -541,8 +541,7 @@ int main(int argc, const char **argv)
 		}
 	}
 
-	printf("dropping into dbg shell...\n");
-	dbg_cli();
+	dbg_cli("walkley> ");
 
 	if (cla.mnt_dev != NULL) {
 		ret = lkl_umount_timeout("/mnt", 0,
