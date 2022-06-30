@@ -35,7 +35,6 @@ linux/arch/lkl/configs/walkley_defconfig: $(LKL_CONFIG)
 	cp -f $< $@
 
 $(LKL): linux/arch/lkl/configs/walkley_defconfig
-	export KCONFIG=walkley_defconfig
-	$(MAKE) -C $@ $(MAKECMDGOALS)
+	$(MAKE) -C $@ $(MAKECMDGOALS) KCONFIG=walkley_defconfig
 
 .PHONY: all clean $(LKL)
