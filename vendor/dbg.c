@@ -88,8 +88,8 @@ static void help() {
 		"\tShow this message\n"
 		"ls [DIR]\n"
 		"\tList files in DIR\n"
-		"mount FSTYPE\n"
-		"\tMount FSTYPE as /FSTYPE\n"
+		"mount FSTYPE [DEV DIR OPTS]\n"
+		"\tMount FSTYPE as /FSTYPE or DEV at DIR with OPTS\n"
 		"overwrite FILE\n"
 		"\tOverwrite content of FILE from stdin\n"
 		"pwd\n"
@@ -142,18 +142,51 @@ static void cd() {
 }
 
 static void mount() {
-	char* fstype;
 	int ret = 0;
+	struct dbg_mnt {
+		char *fstype;
+		char *dev;
+		char *dir;
+		char *opts;
+	} m;
 
-	if (argc != 1) {
-		fprintf(stderr, "%s\n", "One argument is needed.");
+	memset(&m, 0, sizeof(m));
+	if ((argc != 1) && (argc != 3) && (argc != 4)) {
+		fprintf(stderr, "invalid mount parameters.\n");
 		return;
 	}
 
-	fstype = argv[0];
-	ret = lkl_mount_fs(fstype);
-	if (ret == 1)
-		fprintf(stderr, "%s is already mounted.\n", fstype);
+	m.fstype = argv[0];
+	if (argc == 1) {
+		/* default behaviour - single arg mounts fstype under /fstype */
+		m.fstype = argv[0];
+		ret = lkl_mount_fs(m.fstype);
+		if (ret == 1)
+			fprintf(stderr, "%s is already mounted.\n", m.fstype);
+		return;
+	}
+
+	m.dev = argv[1];
+	m.dir = argv[2];
+	if (argc == 4)
+		m.opts = argv[3];	/* optional */
+
+	printf("calling mount with (%s, %s, %s, %s).\n",
+		m.fstype, m.dev, m.dir, m.opts);
+
+	ret = lkl_sys_mkdir(m.dir, 0xff);
+	if (ret && ret != -LKL_EEXIST) {
+		fprintf(stderr, "failed to create dir at %s: %d.\n",
+			m.dir, ret);
+		return;
+	}
+
+	ret = lkl_sys_mount(m.dev, m.dir, m.fstype, 0, m.opts);
+	if (ret && ret != -LKL_EBUSY) {
+		fprintf(stderr, "mount failed: %d.\n", ret);
+		lkl_sys_rmdir(m.dir);
+		return;
+	}
 }
 
 static void cat() {
