@@ -1,4 +1,8 @@
+# The kernel config below will be copied under linux/arch/lkl/configs/
+# and used for lkl compilation.
+LKL_CONFIG := lkl_defconfig
 LKL := linux/tools/lkl
+
 CFLAGS ?= -O3
 CFLAGS += -idirafter uapi
 CFLAGS += -std=gnu99 -D_GNU_SOURCE
@@ -27,7 +31,7 @@ walkley: linux/tools/lkl/liblkl.a \
 	vendor/dbg.c \
 	walkley.c
 
-linux/arch/lkl/configs/walkley_defconfig: lkl_defconfig
+linux/arch/lkl/configs/walkley_defconfig: $(LKL_CONFIG)
 	cp -f $< $@
 
 $(LKL): linux/arch/lkl/configs/walkley_defconfig
