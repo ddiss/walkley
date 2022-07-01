@@ -9,7 +9,7 @@ CFLAGS += -std=gnu99 -D_GNU_SOURCE
 CFLAGS += -Wall -Wextra
 CFLAGS += -MMD -MP
 ifeq ($(DEBUG),yes)
-CFLAGS += -g
+CFLAGS += -g -O0 -DWALKLEY_DEBUG
 endif
 CFLAGS += -I./linux/tools/lkl/include/
 CFLAGS += -I./wireguard-tools/contrib/embeddable-wg-library/
