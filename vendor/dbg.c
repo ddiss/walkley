@@ -118,6 +118,24 @@ static void cd() {
 	}
 }
 
+static void mkdir() {
+	char path[LKL_PATH_MAX];
+	int ret = 0;
+
+	if (argc != 1) {
+		fprintf(stderr, "invalid mkdir parameters.");
+		return;
+	}
+
+	build_path(path);
+	ret = lkl_sys_mkdir(path, 0xff);
+	if (ret) {
+		fprintf(stderr, "failed to create dir at %s: %s.\n",
+			path, lkl_strerror(ret));
+		return;
+	}
+}
+
 static void mount() {
 	int ret = 0;
 	struct dbg_mnt {
@@ -318,6 +336,7 @@ static struct dbg_cmd {
 	{ "cp", "cp INFILE OUTFILE", "Copy INFILE contents to OUTFILE", cp },
 	{ "help", "help", "Show this message", help },
 	{ "ls", "ls [DIR]", "List files in DIR", ls },
+	{ "mkdir", "mkdir DIR", "Create directory DIR", mkdir },
 	{ "mount", "mount FSTYPE [DEV DIR OPTS]",
 	  "Mount FSTYPE as /FSTYPE or DEV at DIR with OPTS", mount },
 	{ "overwrite", "overwrite FILE",
