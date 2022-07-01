@@ -489,6 +489,14 @@ static int lkl_usb_cfg_mount(void)
 		}
 	}
 
+	/* create mountpoint for USB functionfs endpoints */
+	ret = lkl_sys_mkdir("/walkley_ffs", 0700);
+	if (ret && (ret != -LKL_EEXIST)) {
+		fprintf(stderr, "failed to create dir %s: %s.\n",
+			"/walkley_ffs", lkl_strerror(ret));
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -636,6 +644,14 @@ lkl_usb_configfs_setup(const struct usb_device_descriptor *device,
 	if (ret < 0)
 		return ret;
 
+	ret = lkl_sys_mount("walkley", "/walkley_ffs", "functionfs",
+			    0, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "failed to mount functionfs: %s.\n",
+			lkl_strerror(ret));
+		return ret;
+	}
+
 #if 0
 	ret = snprintf(subdir_boff, subdir_blen, "UDC");
 	if (ret <= 0 || (size_t)ret >= sizeof(configfs_data))
@@ -711,7 +727,6 @@ host_usb_interface_parse(const struct usb_device_descriptor *device,
 		dlen_used += this_len;
 	}
 
-out_dlen:
 	return dlen_used;
 }
 
@@ -735,9 +750,9 @@ static int host_usb_desc_read(uint32_t usb_vendor_product, const char *devname)
 
 	dlen = read(dev_fd, dbuf, sizeof(dbuf));
 	if ((dlen < USB_DT_DEVICE_SIZE + USB_DT_CONFIG_SIZE)
-	 || (dlen > sizeof(dbuf))) {
-		fprintf(stderr, "failed to read USB device desc at %s: %d/%d\n",
-			devname, dlen, errno);
+	 || ((size_t)dlen > sizeof(dbuf))) {
+		fprintf(stderr, "failed to read USB device desc at %s: "
+			"%zd/%d\n", devname, dlen, errno);
 		ret = -EIO;
 		goto err_close;
 	}
