@@ -371,7 +371,7 @@ void dbg_cli(const char *prompt) {
 
 	printf("Type help to see a list of commands\n");
 	do {
-		printf("%s", prompt);
+		printf("%s:%s> ", prompt, cur_dir);
 		ret = scanf("%" xstr(MAX_BUF) "[^\n]s", input);
 		while ((c = getchar()) != '\n' && c != EOF);
 		if (ret == 0)
